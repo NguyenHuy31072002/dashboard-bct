@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bảo Cát Tường — Hệ thống phân tích doanh thu</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#eef2f7; --card:#ffffff; --text:#1e293b; --muted:#64748b;
+    --line:#eae6db;
+    /* Bộ màu thương hiệu Bảo Việt: xanh navy + vàng gold */
+    --primary:#00529B; --primary2:#0F74C7;
+    --gold:#F8B11D; --gold2:#FBC831; --navy:#003A73;
+    --shadow:0 10px 30px rgba(0,58,115,.08);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
+    background:linear-gradient(180deg,#eef3f8 0%,#f5f1e6 100%);
+    color:var(--text);padding:22px;min-height:100vh;
+  }
+  .wrap{max-width:1320px;margin:0 auto}
+  .card{background:var(--card);border-radius:20px;box-shadow:var(--shadow);border:1px solid var(--line)}
+
+  /* Header */
+  .headcard{margin-bottom:22px}
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:22px 28px}
+
+  /* Filter bar */
+  .filterbar{display:flex;align-items:center;flex-wrap:wrap;gap:14px 22px;padding:16px 28px;border-top:1px solid var(--line);
+    background:linear-gradient(180deg,#f7fafd,#eef4fb);border-radius:0 0 20px 20px}
+  .fl-group{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .fl-group .cal{width:20px;height:20px;color:var(--primary)}
+  .fl-label{font-size:13.5px;font-weight:700;color:var(--navy)}
+  .fl-field{display:inline-flex;align-items:center;gap:7px;background:#fff;border:1px solid #d6e2ef;border-radius:11px;padding:6px 12px}
+  .fl-cap{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)}
+  .fl-field input[type=date]{border:none;outline:none;font-size:13.5px;font-weight:600;color:var(--text);background:transparent;font-family:inherit;cursor:pointer}
+  .fl-field input:disabled{color:#aab4c0;cursor:not-allowed}
+  .fl-arrow{color:var(--muted);font-weight:700}
+  .fl-chips{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .chip{border:1px solid #d6e2ef;background:#fff;color:#475569;font-size:12.5px;font-weight:700;padding:7px 14px;border-radius:30px;
+    cursor:pointer;transition:all .15s}
+  .chip:hover:not(:disabled){border-color:var(--primary);color:var(--primary)}
+  .chip.active{background:var(--primary);border-color:var(--primary);color:#fff;box-shadow:0 4px 12px rgba(0,82,155,.28)}
+  .chip:disabled{opacity:.45;cursor:not-allowed}
+  .fl-note{font-size:12.5px;color:var(--muted);margin-left:auto;font-style:italic}
+  .brand{display:flex;align-items:center;gap:16px}
+  .logo{width:54px;height:54px;border-radius:15px;background:linear-gradient(135deg,var(--gold2),var(--gold));
+        display:flex;align-items:center;justify-content:center;color:var(--navy);box-shadow:0 8px 20px rgba(248,177,29,.45)}
+  .brand h1{font-size:25px;letter-spacing:.5px;font-weight:800;color:var(--navy)}
+  .brand .sub{font-size:11px;letter-spacing:1.5px;color:var(--muted);font-weight:600;text-transform:uppercase;margin-top:3px}
+  .topbar-right{display:flex;align-items:center;gap:12px}
+  .badge{display:inline-flex;align-items:center;gap:8px;background:#f1f5f9;border:1px solid var(--line);
+        color:#475569;font-size:13px;font-weight:600;padding:9px 16px;border-radius:30px}
+  .dot{width:9px;height:9px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.18)}
+  .btn{display:inline-flex;align-items:center;gap:9px;border:none;cursor:pointer;font-weight:700;font-size:14px;
+       padding:11px 20px;border-radius:30px;color:#fff;background:linear-gradient(135deg,var(--primary),var(--primary2));
+       box-shadow:0 8px 18px rgba(0,82,155,.32);transition:transform .15s,box-shadow .15s}
+  .btn:hover{transform:translateY(-1px);box-shadow:0 12px 24px rgba(0,82,155,.42)}
+  .btn svg{width:18px;height:18px}
+
+  /* KPI */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-bottom:26px}
+  .kpi{padding:24px 24px 22px;display:flex;flex-direction:column;gap:6px;position:relative;overflow:hidden}
+  .kpi .label{font-size:12px;letter-spacing:1.2px;font-weight:700;color:var(--muted);text-transform:uppercase}
+  .kpi .value{font-size:30px;font-weight:800;line-height:1.1}
+  .kpi .value .unit{font-size:18px}
+  .kpi .hint{font-size:12.5px;color:var(--muted)}
+  .kpi .icon{position:absolute;top:20px;right:22px;width:50px;height:50px;border-radius:14px;
+            display:flex;align-items:center;justify-content:center}
+  .kpi .icon svg{width:24px;height:24px}
+  .kpi{transition:transform .2s,box-shadow .2s}
+  .kpi:hover{transform:translateY(-4px);box-shadow:0 16px 34px rgba(30,41,59,.12)}
+  @keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+  .kpis .kpi{animation:rise .6s both}
+  .kpis .kpi:nth-child(1){animation-delay:.02s}
+  .kpis .kpi:nth-child(2){animation-delay:.10s}
+  .kpis .kpi:nth-child(3){animation-delay:.18s}
+  .kpis .kpi:nth-child(4){animation-delay:.26s}
+  @keyframes fadein{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+  tbody tr{animation:fadein .5s both}
+  .k1 .value{color:var(--navy)}.k1 .icon{background:#fdf2d2;color:#cf8f04}
+  .k2 .icon{background:#e1eefb;color:#00529b}
+  .k3 .icon{background:#e3f3ec;color:#1fa37a}
+  .k4 .icon{background:#fbeede;color:#e1881f}
+
+  /* Section title */
+  .section-head{display:flex;align-items:center;gap:12px;margin:6px 4px 18px}
+  .section-head .bar{width:6px;height:30px;border-radius:6px;background:linear-gradient(var(--gold),var(--primary))}
+  .section-head h2{font-size:22px;font-weight:800}
+  .section-head p{font-size:13px;color:var(--muted);margin-top:2px}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-bottom:26px}
+  .panel{padding:24px 26px}
+  .panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .panel-head h3{font-size:18px;font-weight:700}
+  .pill{font-size:12px;color:#64748b;background:#f1f5f9;border:1px solid var(--line);padding:6px 14px;border-radius:30px;font-weight:600}
+  .chart-box{position:relative;height:340px;margin-top:10px}
+  .chart-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;
+    color:#9aa6b2;font-size:14px;font-weight:600;padding:20px}
+
+  /* Banner chờ upload */
+  .emptybanner{display:flex;align-items:center;gap:14px;background:linear-gradient(135deg,#fff8e3,#fef3cf);
+    border:1px dashed #ecc34d;border-radius:16px;padding:18px 24px;margin-bottom:24px;color:#7a5a06;font-size:14.5px;font-weight:600}
+  .emptybanner svg{width:26px;height:26px;color:#d99b08;flex-shrink:0}
+  .emptybanner b{color:var(--navy)}
+
+  /* Tables */
+  .tablecard{padding:24px 26px;margin-bottom:26px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:12px 12px;border-bottom:1px solid var(--line)}
+  th{font-size:11.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);font-weight:700}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  tr:hover td{background:#f8fafc}
+  .rank{display:inline-flex;width:26px;height:26px;border-radius:8px;background:#e1eefb;color:var(--primary);
+        align-items:center;justify-content:center;font-weight:700;font-size:12.5px}
+  .reg-chip{display:inline-flex;align-items:center;gap:8px}
+  .reg-chip .sw{width:11px;height:11px;border-radius:3px}
+  .two-tables{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+
+  /* Original report table */
+  .report{margin-bottom:26px;overflow:hidden}
+  .report-title{display:flex;align-items:center;gap:12px;font-size:16px;font-weight:800;letter-spacing:.4px;color:#fff;
+    padding:18px 26px;background:linear-gradient(135deg,#1267b3,var(--primary));text-transform:uppercase}
+  .report-title svg{color:var(--gold2)}
+  .report-title svg{width:22px;height:22px}
+  .report-scroll{overflow-x:auto}
+  table.rpt{width:100%;border-collapse:collapse;font-size:13.5px;min-width:920px}
+  table.rpt thead th{background:#eef3f9;color:var(--navy);font-size:11.5px;letter-spacing:.4px;text-transform:uppercase;
+    font-weight:800;padding:13px 14px;border-bottom:2px solid #d6e2ef;text-align:left;vertical-align:middle}
+  table.rpt th.num{text-align:right}
+  table.rpt td{padding:14px;border-bottom:1px solid #eef1f5;vertical-align:top}
+  table.rpt tbody tr:nth-child(even){background:#fafcfe}
+  table.rpt tbody tr:hover td{background:#f2f7fc}
+  table.rpt td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  table.rpt .c-stt{width:48px;text-align:center}
+  table.rpt td.c-stt{text-align:center}
+  .stt-badge{display:inline-flex;width:30px;height:30px;border-radius:9px;align-items:center;justify-content:center;
+    font-weight:800;color:#fff;background:linear-gradient(135deg,var(--primary2),var(--primary));box-shadow:0 4px 10px rgba(0,82,155,.3)}
+  .vung-name{font-weight:700;color:var(--navy);max-width:190px}
+  .dt-big{font-weight:800;color:#b9820a;font-size:14.5px}
+  .don-big{font-weight:800;color:#0369a1}
+  .cnt-pill{display:inline-flex;min-width:34px;justify-content:center;padding:5px 10px;border-radius:8px;font-weight:800;
+    background:#fdf0c2;color:#8a6400}
+  ul.top3{list-style:none;display:flex;flex-direction:column;gap:5px;max-width:280px}
+  ul.top3 li{display:flex;justify-content:space-between;gap:12px;align-items:baseline;font-size:12.5px;line-height:1.3}
+  ul.top3 li .nm{color:#374151;font-weight:600;display:flex;align-items:center;gap:6px;min-width:0}
+  ul.top3 li .nm b{flex-shrink:0;width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+    font-size:10px;color:var(--navy);background:var(--gold)}
+  ul.top3 li:nth-child(2) .nm b{background:#fac74e}
+  ul.top3 li:nth-child(3) .nm b{background:#fbd57e}
+  ul.top3 li .vl{color:#9a6b00;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+  table.rpt tfoot td{padding:15px 14px;background:linear-gradient(135deg,#eef3f9,#e4eef8);border-top:2px solid #cfe0f0;
+    font-weight:800;color:var(--navy)}
+  table.rpt tfoot .num{text-align:right}
+
+  .foot{text-align:center;color:var(--muted);font-size:12.5px;padding:10px 0 4px}
+  .filename{font-size:12.5px;color:var(--muted)}
+  input[type=file]{display:none}
+  @media(max-width:980px){.kpis{grid-template-columns:repeat(2,1fr)}.grid2,.two-tables{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HEADER -->
+  <div class="card headcard">
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo">
+          <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/></svg>
+        </div>
+        <div>
+          <h1>Bảo Cát Tường - Bảo An Khang</h1>
+          <div class="sub">Hệ thống phân tích doanh thu — BCT - BAK</div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <span class="badge"><span class="dot"></span><span id="dataStatus">Dữ liệu mới nhất</span></span>
+        <button class="btn" onclick="document.getElementById('fileInput').click()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4M5 11l7-7 7 7M4 20h16"/></svg>
+          Upload dữ liệu
+        </button>
+        <input type="file" id="fileInput" accept=".xlsx,.xls">
+      </div>
+    </div>
+
+    <!-- BỘ LỌC THỜI GIAN -->
+    <div class="filterbar">
+      <div class="fl-group">
+        <svg class="cal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
+        <span class="fl-label">Lọc theo Ngày cấp đơn:</span>
+        <span class="fl-field"><span class="fl-cap">Từ</span><input type="date" id="dFrom" disabled></span>
+        <span class="fl-arrow">→</span>
+        <span class="fl-field"><span class="fl-cap">Đến</span><input type="date" id="dTo" disabled></span>
+      </div>
+      <div class="fl-chips" id="flChips">
+        <button class="chip active" data-range="all" disabled>Toàn bộ</button>
+        <button class="chip" data-range="7" disabled>7 ngày</button>
+        <button class="chip" data-range="30" disabled>30 ngày</button>
+        <button class="chip" data-range="90" disabled>90 ngày</button>
+        <button class="chip" data-range="reset" disabled>↺ Đặt lại</button>
+      </div>
+      <div class="fl-note" id="flNote">Tải lên file Excel để bật lọc theo ngày</div>
+    </div>
+  </div>
+  <div class="filename" id="fileName" style="margin:-12px 6px 18px"></div>
+
+  <!-- Banner chờ upload -->
+  <div class="emptybanner" id="emptyBanner">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"/><path d="M14 2v6h6M12 18v-6M9 15h6"/></svg>
+    <span>Chưa có dữ liệu hiển thị. Bấm nút <b>Upload dữ liệu</b> ở góc trên bên phải để tải file Excel (.xlsx) — toàn bộ biểu đồ &amp; bảng sẽ tự tạo từ dữ liệu của bạn.</span>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpis">
+    <div class="card kpi k1">
+      <div class="label">Tổng doanh thu</div>
+      <div class="value" id="kRevenue">0 <span class="unit">đ</span></div>
+      <div class="hint">Toàn bộ hệ thống phát sinh</div>
+      <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg></div>
+    </div>
+    <div class="card kpi k2">
+      <div class="label">Tổng số đơn</div>
+      <div class="value" id="kOrders">0</div>
+      <div class="hint">Đơn hàng đã cấp thành công</div>
+      <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18l-1.5 12.5a2 2 0 01-2 1.5H6.5a2 2 0 01-2-1.5L3 7z"/><path d="M8 7V5a4 4 0 018 0v2"/></svg></div>
+    </div>
+    <div class="card kpi k3">
+      <div class="label">Số công ty phát sinh</div>
+      <div class="value" id="kCompanies">0</div>
+      <div class="hint">Đơn vị Bảo Việt hoạt động</div>
+      <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21V5a2 2 0 012-2h7a2 2 0 012 2v16"/><path d="M15 9h3a2 2 0 012 2v10"/><path d="M8 7h2M8 11h2M8 15h2"/></svg></div>
+    </div>
+    <div class="card kpi k4">
+      <div class="label">Số đại lý phát sinh DT</div>
+      <div class="value" id="kAgents">0</div>
+      <div class="hint">Đại lý có doanh số</div>
+      <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/></svg></div>
+    </div>
+  </div>
+
+  <!-- SECTION -->
+  <div class="section-head">
+    <div class="bar"></div>
+    <div>
+      <h2>Phân Tích So Sánh Các Vùng Miền</h2>
+      <p>Biểu đồ so sánh tỷ trọng doanh thu và hiệu suất bán hàng giữa các khu vực</p>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card panel">
+      <div class="panel-head"><h3>Tỷ Trọng Doanh Thu Theo Vùng</h3><span class="pill">Doanh thu (đ)</span></div>
+      <div class="chart-box"><canvas id="donut"></canvas></div>
+    </div>
+    <div class="card panel">
+      <div class="panel-head"><h3>Số Đơn Hàng &amp; Lực Lượng Đại Lý</h3><span class="pill">Tương quan hiệu suất</span></div>
+      <div class="chart-box"><canvas id="bars"></canvas></div>
+    </div>
+  </div>
+
+  <!-- ORIGINAL REPORT TABLE (BÁO CÁO THEO CÁN BỘ PHỤ TRÁCH) -->
+  <div class="card report">
+    <div class="report-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 17v-6M12 17V7M15 17v-3"/><rect x="3" y="3" width="18" height="18" rx="3"/></svg>
+      BÁO CÁO THEO VÙNG
+    </div>
+    <div class="report-scroll">
+      <table class="rpt">
+        <thead>
+          <tr>
+            <th class="c-stt">STT</th>
+            <th>👨‍💼 Vùng</th>
+            <th class="num">Số cty<br>có DT</th>
+            <th>🏢 Top 3 công ty</th>
+            <th class="num">Số đlý<br>có DT</th>
+            <th>👤 Top 3 đại lý</th>
+            <th class="num">Doanh thu (đ)</th>
+            <th class="num">Số đơn</th>
+          </tr>
+        </thead>
+        <tbody id="rptBody"></tbody>
+        <tfoot id="rptFoot"></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <!-- REGION TABLE (computed) -->
+  <div class="card tablecard">
+    <div class="panel-head"><h3>Chi Tiết Theo Vùng Miền</h3><span class="pill" id="regCount"></span></div>
+    <table>
+      <thead><tr><th>Vùng miền</th><th class="num">Doanh thu (đ)</th><th class="num">Tỷ trọng</th><th class="num">Số đơn</th><th class="num">Số công ty</th><th class="num">Số đại lý</th></tr></thead>
+      <tbody id="regBody"></tbody>
+    </table>
+  </div>
+
+  <!-- TOP TABLES -->
+  <div class="two-tables">
+    <div class="card tablecard">
+      <div class="panel-head"><h3>Top Công Ty Theo Doanh Thu</h3></div>
+      <table>
+        <thead><tr><th>#</th><th>Công ty</th><th class="num">Doanh thu (đ)</th><th class="num">Số đơn</th></tr></thead>
+        <tbody id="compBody"></tbody>
+      </table>
+    </div>
+    <div class="card tablecard">
+      <div class="panel-head"><h3>Top Đại Lý Phát Sinh DT</h3></div>
+      <table>
+        <thead><tr><th>#</th><th>Đại lý</th><th>Công ty</th><th class="num">Doanh thu (đ)</th></tr></thead>
+        <tbody id="agentBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="foot">Bảo Cát Tường · Dashboard phân tích doanh thu · Tải lên file Excel cùng cấu trúc để cập nhật dữ liệu.</div>
+</div>
+
+<script>
+/* ====================== CẤU HÌNH CỘT (không đổi theo cấu trúc file) ====================== */
+const SHEET_DATA    = 'DATA_TỔNG HỢP';   // sheet dữ liệu giao dịch
+const SHEET_MAPPING = 'MAPPING_CÁN BỘ';  // sheet ánh xạ công ty -> vùng
+
+// Tên cột cần dùng (so khớp linh hoạt theo tiền tố, không phân biệt hoa thường / xuống dòng)
+const COL = {
+  unit:    'đơn vị bảo việt',
+  agent:   'mã đại lý',
+  agentNm: 'tên đại lý',
+  fee:     'phí thực thu',
+  date:    'ngày cấp đơn'
+};
+
+const REGION_ORDER = [
+  'Đồng Bằng Sông Hồng',
+  'Tây Nguyên Duyên hải miền Trung',
+  'Đồng Bằng Sông Cửu Long',
+  'Bắc Trung Bộ',
+  'Miền núi phía Bắc + Đông Đô Mỹ Đình Tràng An Hà Nội',
+  'Đông Nam Bộ',
+  'Khác / Chưa phân loại'
+];
+const REGION_COLOR = {
+  'Đồng Bằng Sông Hồng':'#00529B',
+  'Tây Nguyên Duyên hải miền Trung':'#F8B11D',
+  'Đồng Bằng Sông Cửu Long':'#1FA37A',
+  'Bắc Trung Bộ':'#E8743B',
+  'Miền núi phía Bắc + Đông Đô Mỹ Đình Tràng An Hà Nội':'#5B8DEF',
+  'Đông Nam Bộ':'#D64550',
+  'Khác / Chưa phân loại':'#94a3b8'
+};
+const SHORT = {
+  'Đồng Bằng Sông Hồng':'Đồng Bằng Sông Hồng',
+  'Tây Nguyên Duyên hải miền Trung':'Tây Nguyên DH miền Trung',
+  'Đồng Bằng Sông Cửu Long':'Đồng Bằng Sông Cửu Long',
+  'Bắc Trung Bộ':'Bắc Trung Bộ',
+  'Miền núi phía Bắc + Đông Đô Mỹ Đình Tràng An Hà Nội':'Miền núi phía Bắc + Đông Đô...',
+  'Đông Nam Bộ':'Đông Nam Bộ',
+  'Khác / Chưa phân loại':'Khác / Chưa phân loại'
+};
+
+/* ====================== TIỆN ÍCH ====================== */
+const fmt = n => Math.round(n).toLocaleString('vi-VN');
+
+// Hiệu ứng số chạy tăng dần cho thẻ KPI
+function countUp(el, target, suffix){
+  const dur=1100, start=performance.now();
+  const ease=t=>1-Math.pow(1-t,3);
+  function step(now){
+    const p=Math.min(1,(now-start)/dur);
+    const v=Math.round(target*ease(p));
+    el.innerHTML = fmt(v)+(suffix||'');
+    if(p<1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+const clean = s => (s==null?'':String(s)).replace(/﻿/g,'').replace(/\s+/g,' ').trim();
+const lc = s => clean(s).toLowerCase();
+
+function normCompany(u){
+  const s = clean(u), low = s.toLowerCase();
+  for(const pre of ['tổng công ty bảo hiểm bảo việt','công ty bảo việt']){
+    if(low.startsWith(pre)){ const rest = s.slice(pre.length).trim(); return rest? 'BV '+rest : s; }
+  }
+  return s;
+}
+// tìm index cột theo tiền tố tên header
+function findCol(headers, key){
+  for(let i=0;i<headers.length;i++){ if(lc(headers[i]).startsWith(key)) return i; }
+  return -1;
+}
+
+/* ====================== ĐỌC SHEET DASHBOARD (BẢNG GỐC) ====================== */
+const nrm = s => (s==null?'':String(s)).replace(/\s+/g,' ').trim().toLowerCase();
+const cellAt = (rows,r,c)=> (rows[r] && c<rows[r].length)? rows[r][c] : null;
+const isTotalRow = row => (row||[]).some(x=> typeof x==='string' && x.trim().toUpperCase().startsWith('TỔNG'));
+function splitTop3(v){
+  if(v==null) return [];
+  return String(v).split('\n').map(s=>s.replace(/^[•\-\s]+/,'').trim()).filter(s=>s && s!=='-')
+    .map(line=>{ const i=line.lastIndexOf(':'); return i<0? {name:line,val:''} : {name:line.slice(0,i).trim(), val:line.slice(i+1).trim()}; });
+}
+function readDashboard(wb){
+  const ds = wb.Sheets['DASHBOARD']; if(!ds) return null;
+  const rows = XLSX.utils.sheet_to_json(ds,{header:1,raw:true});
+  // --- Khối báo cáo theo vùng ---
+  let hr = rows.findIndex(r=>(r||[]).some(x=>nrm(x).startsWith('top 3 công ty')));
+  if(hr<0) return null;
+  const H = rows[hr];
+  const col = pred => H.findIndex(x=>pred(nrm(x)));
+  const c={stt:col(s=>s==='stt'), vung:col(s=>s.includes('vùng')), cty:col(s=>s.includes('cty')&&s.includes('dt')),
+    t3c:col(s=>s.startsWith('top 3 công')), dly:col(s=>s.includes('đly')&&s.includes('dt')),
+    t3d:col(s=>s.startsWith('top 3 đại')), dt:col(s=>s.includes('doanh thu')), don:col(s=>s.includes('số đơn'))};
+  const regions=[]; let total=null;
+  for(let i=hr+1;i<rows.length;i++){
+    const stt=cellAt(rows,i,c.stt), vung=cellAt(rows,i,c.vung);
+    if(stt==null && vung==null) continue;
+    if(isTotalRow(rows[i]) || nrm(vung).includes('cán bộ')){
+      total={companies:cellAt(rows,i,c.cty), agents:cellAt(rows,i,c.dly), revenue:cellAt(rows,i,c.dt), orders:cellAt(rows,i,c.don)};
+      break;
+    }
+    regions.push({stt, name:clean(vung), ctyCount:cellAt(rows,i,c.cty), top3Cty:splitTop3(cellAt(rows,i,c.t3c)),
+      dlyCount:cellAt(rows,i,c.dly), top3Dly:splitTop3(cellAt(rows,i,c.t3d)),
+      revenue:Number(cellAt(rows,i,c.dt))||0, orders:Number(cellAt(rows,i,c.don))||0});
+  }
+  if(!regions.length) return null;
+
+  // --- Khối top công ty & top đại lý ---
+  let topCompanies=[], topAgents=[];
+  const ar = rows.findIndex(r=>(r||[]).some(x=>nrm(x)==='tên đại lý'));
+  if(ar>=0){
+    const HA=rows[ar]; const ai=HA.findIndex(x=>nrm(x)==='tên đại lý');
+    const after=(from,pred)=>{ for(let k=from;k<HA.length;k++) if(pred(nrm(HA[k]))) return k; return -1; };
+    // công ty: mọi cột 'công ty' đứng trước cột tên đại lý
+    const comps=[];
+    HA.forEach((x,j)=>{ if(nrm(x)==='công ty' && j<ai){
+      comps.push({cn:j, dt:after(j+1,s=>s.includes('doanh thu')), don:after(j+1,s=>s.includes('số đơn'))}); }});
+    comps.forEach(g=>{ for(let i=ar+1;i<rows.length;i++){ if(isTotalRow(rows[i])) break;
+      const nm=cellAt(rows,i,g.cn), rv=cellAt(rows,i,g.dt);
+      if(nm && clean(nm) && typeof rv==='number') topCompanies.push({name:clean(nm),revenue:rv,orders:Number(cellAt(rows,i,g.don))||0}); }});
+    topCompanies.sort((a,b)=>b.revenue-a.revenue); topCompanies=topCompanies.slice(0,12);
+    // đại lý
+    const adt=after(ai+1,s=>s.includes('doanh thu')), adon=after(ai+1,s=>s.includes('số đơn'));
+    let acomp=-1; for(let k=ai+1;k<adt;k++) if(nrm(HA[k])==='công ty'){acomp=k;break;}
+    for(let i=ar+1;i<rows.length;i++){ if(isTotalRow(rows[i])) break;
+      const nm=cellAt(rows,i,ai), rv=cellAt(rows,i,adt);
+      if(nm && clean(nm) && typeof rv==='number')
+        topAgents.push({name:clean(nm), company: acomp>=0? clean(cellAt(rows,i,acomp)) : '', revenue:rv, orders:Number(cellAt(rows,i,adon))||0}); }
+    topAgents.sort((a,b)=>b.revenue-a.revenue); topAgents=topAgents.slice(0,12);
+  }
+
+  const kpi = total ? {revenue:Number(total.revenue)||0, orders:Number(total.orders)||0,
+    companies:Number(total.companies)||0, agents:Number(total.agents)||0}
+    : {revenue:regions.reduce((s,r)=>s+r.revenue,0), orders:regions.reduce((s,r)=>s+r.orders,0),
+       companies:regions.reduce((s,r)=>s+(Number(r.ctyCount)||0),0), agents:regions.reduce((s,r)=>s+(Number(r.dlyCount)||0),0)};
+  return { kpi,
+    regions: regions.map(r=>({name:r.name, revenue:r.revenue, orders:r.orders, agents:Number(r.dlyCount)||0, companies:Number(r.ctyCount)||0})),
+    regionReport: regions, regionTotal: total,
+    topCompanies, topAgents };
+}
+
+/* ====================== TỔNG HỢP (ưu tiên bảng gốc, fallback tính từ dữ liệu thô) ====================== */
+function aggregate(wb){
+  let D=null;
+  try{ D = readDashboard(wb); }catch(e){ D=null; }
+  if(D && D.regions.length){
+    if(!D.topCompanies.length || !D.topAgents.length){
+      try{ const raw=computeFromRaw(wb); if(!D.topCompanies.length) D.topCompanies=raw.topCompanies; if(!D.topAgents.length) D.topAgents=raw.topAgents; }catch(e){}
+    }
+    return D;
+  }
+  // Không có sheet DASHBOARD hợp lệ -> tính toàn bộ từ dữ liệu thô
+  const raw = computeFromRaw(wb);
+  raw.regionReport = raw.regions.map((r,i)=>({stt:i+1, name:r.name, ctyCount:r.companies, dlyCount:r.agents,
+    revenue:r.revenue, orders:r.orders, top3Cty:[], top3Dly:[]}));
+  raw.regionTotal = {companies:raw.kpi.companies, agents:raw.kpi.agents, revenue:raw.kpi.revenue, orders:raw.kpi.orders};
+  return raw;
+}
+
+/* ====================== TÍNH TOÁN TỪ DỮ LIỆU THÔ ====================== */
+function computeFromRaw(wb){
+  // 1) mapping công ty -> vùng
+  const map = {};
+  const ms = wb.Sheets[SHEET_MAPPING];
+  if(ms){
+    const rows = XLSX.utils.sheet_to_json(ms,{header:1,raw:true});
+    for(let r=1;r<rows.length;r++){
+      const c=rows[r][0], reg=rows[r][1];
+      if(c && reg) map[lc(c)] = clean(reg);
+    }
+  }
+  const regionOf = u => map[ lc(normCompany(u)) ] || 'Khác / Chưa phân loại';
+
+  // 2) dữ liệu giao dịch
+  const ds = wb.Sheets[SHEET_DATA];
+  if(!ds) throw new Error('Không tìm thấy sheet "'+SHEET_DATA+'" trong file.');
+  const rows = XLSX.utils.sheet_to_json(ds,{header:1,raw:true});
+  const H = rows[0]||[];
+  const iUnit=findCol(H,COL.unit), iAgent=findCol(H,COL.agent), iAgentNm=findCol(H,COL.agentNm), iFee=findCol(H,COL.fee);
+  if(iUnit<0||iFee<0) throw new Error('File thiếu cột "Đơn vị Bảo Việt" hoặc "Phí thực thu".');
+
+  const R = {}; REGION_ORDER.forEach(k=>R[k]={name:k,revenue:0,orders:0,agents:new Set(),companies:new Set()});
+  const compRev={}, compOrd={}, agRev={}, agOrd={}, agNm={}, agComp={};
+  let total=0, orders=0; const comps=new Set(), agents=new Set();
+
+  for(let r=1;r<rows.length;r++){
+    const row=rows[r]; if(!row) continue;
+    const u=row[iUnit]; if(!u||!clean(u)) continue;
+    let fee=parseFloat(row[iFee]); if(!isFinite(fee)) fee=0;
+    const reg=regionOf(u);
+    total+=fee; orders++; comps.add(clean(u));
+    R[reg].revenue+=fee; R[reg].orders++; R[reg].companies.add(clean(u));
+    const a = iAgent>=0? row[iAgent] : null;
+    if(a!=null && clean(a)){
+      const ak=clean(a);
+      agents.add(ak); R[reg].agents.add(ak);
+      agRev[ak]=(agRev[ak]||0)+fee; agOrd[ak]=(agOrd[ak]||0)+1;
+      agNm[ak]= iAgentNm>=0? clean(row[iAgentNm])||ak : ak; agComp[ak]=normCompany(u);
+    }
+    const ck=clean(u);
+    compRev[ck]=(compRev[ck]||0)+fee; compOrd[ck]=(compOrd[ck]||0)+1;
+  }
+
+  const regions = REGION_ORDER.map(k=>R[k]).filter(x=>x.orders>0).map(x=>({
+    name:x.name, revenue:x.revenue, orders:x.orders, agents:x.agents.size, companies:x.companies.size
+  }));
+  const topCompanies = Object.keys(compRev).map(k=>({name:normCompany(k),revenue:compRev[k],orders:compOrd[k]}))
+                       .sort((a,b)=>b.revenue-a.revenue).slice(0,12);
+  const topAgents = Object.keys(agRev).map(k=>({name:agNm[k],company:agComp[k],revenue:agRev[k],orders:agOrd[k]}))
+                    .sort((a,b)=>b.revenue-a.revenue).slice(0,12);
+
+  return { kpi:{revenue:total,orders,companies:comps.size,agents:agents.size}, regions, topCompanies, topAgents };
+}
+
+/* ====================== ĐỌC TỪNG DÒNG GIAO DỊCH (phục vụ lọc theo ngày) ====================== */
+function toMs(v){
+  if(v==null||v==='') return null;
+  if(typeof v==='number') return Math.round((v-25569)*86400000);      // serial Excel -> UTC nửa đêm
+  if(v instanceof Date) return Date.UTC(v.getFullYear(),v.getMonth(),v.getDate());
+  const d=new Date(v); return isNaN(d)?null:d.getTime();
+}
+function parseRaw(wb){
+  const ms=wb.Sheets[SHEET_MAPPING]; const map={};
+  if(ms){ const mr=XLSX.utils.sheet_to_json(ms,{header:1,raw:true});
+    for(let r=1;r<mr.length;r++){ const c=mr[r][0],reg=mr[r][1]; if(c&&reg) map[lc(c)]=clean(reg); } }
+  const regionOf=u=> map[lc(normCompany(u))] || 'Khác / Chưa phân loại';
+  const ds=wb.Sheets[SHEET_DATA]; if(!ds) return null;
+  const rows=XLSX.utils.sheet_to_json(ds,{header:1,raw:true});
+  const H=rows[0]||[];
+  const iUnit=findCol(H,COL.unit), iAgent=findCol(H,COL.agent), iAgentNm=findCol(H,COL.agentNm), iFee=findCol(H,COL.fee), iDate=findCol(H,COL.date);
+  if(iUnit<0||iFee<0) return null;
+  const records=[]; let dmin=null,dmax=null;
+  for(let r=1;r<rows.length;r++){
+    const row=rows[r]; if(!row) continue;
+    const u=row[iUnit]; if(!u||!clean(u)) continue;
+    let fee=parseFloat(row[iFee]); if(!isFinite(fee)) fee=0;
+    const a = iAgent>=0? row[iAgent] : null;
+    const t = iDate>=0? toMs(row[iDate]) : null;
+    if(t!=null){ if(dmin==null||t<dmin)dmin=t; if(dmax==null||t>dmax)dmax=t; }
+    records.push({ t, region:regionOf(u), compKey:clean(u), compNorm:normCompany(u),
+      agentKey: (a!=null&&clean(a))? clean(a):null, agentNm: iAgentNm>=0? clean(row[iAgentNm]):'', fee });
+  }
+  return { records, dmin, dmax };
+}
+
+/* ====================== TÍNH TOÁN TỪ CÁC DÒNG ĐÃ LỌC ====================== */
+function computeFromRecords(records){
+  const R={}; REGION_ORDER.forEach(k=>R[k]={name:k,revenue:0,orders:0,agents:new Set(),companies:new Set(),compRev:{},agRev:{},agNm:{}});
+  const compRev={},compOrd={},compNm={},agRev={},agOrd={},agNm={},agComp={};
+  let total=0,orders=0; const comps=new Set(),agents=new Set();
+  for(const rec of records){
+    const reg=R[rec.region]||R['Khác / Chưa phân loại'];
+    total+=rec.fee; orders++; comps.add(rec.compKey);
+    reg.revenue+=rec.fee; reg.orders++; reg.companies.add(rec.compKey);
+    reg.compRev[rec.compKey]=(reg.compRev[rec.compKey]||0)+rec.fee;
+    compRev[rec.compKey]=(compRev[rec.compKey]||0)+rec.fee; compOrd[rec.compKey]=(compOrd[rec.compKey]||0)+1; compNm[rec.compKey]=rec.compNorm;
+    if(rec.agentKey){
+      agents.add(rec.agentKey); reg.agents.add(rec.agentKey);
+      reg.agRev[rec.agentKey]=(reg.agRev[rec.agentKey]||0)+rec.fee; reg.agNm[rec.agentKey]=rec.agentNm||rec.agentKey;
+      agRev[rec.agentKey]=(agRev[rec.agentKey]||0)+rec.fee; agOrd[rec.agentKey]=(agOrd[rec.agentKey]||0)+1;
+      agNm[rec.agentKey]=rec.agentNm||rec.agentKey; agComp[rec.agentKey]=rec.compNorm;
+    }
+  }
+  const top3 = (obj,nameFn)=> Object.keys(obj).map(k=>({name:nameFn(k),revenue:obj[k]}))
+      .sort((a,b)=>b.revenue-a.revenue).slice(0,3).map(x=>({name:x.name,val:fmt(x.revenue)}));
+  const activeRegions = REGION_ORDER.map(k=>R[k]).filter(x=>x.orders>0);
+  const regionReport = activeRegions.map((x,i)=>({ stt:i+1, name:x.name, ctyCount:x.companies.size, dlyCount:x.agents.size,
+    revenue:x.revenue, orders:x.orders,
+    top3Cty: top3(x.compRev, k=>normCompany(k)),
+    top3Dly: top3(x.agRev, k=>x.agNm[k]||k) }));
+  const regions = activeRegions.map(x=>({name:x.name,revenue:x.revenue,orders:x.orders,agents:x.agents.size,companies:x.companies.size}));
+  const topCompanies = Object.keys(compRev).map(k=>({name:compNm[k],revenue:compRev[k],orders:compOrd[k]}))
+      .sort((a,b)=>b.revenue-a.revenue).slice(0,12);
+  const topAgents = Object.keys(agRev).map(k=>({name:agNm[k],company:agComp[k],revenue:agRev[k],orders:agOrd[k]}))
+      .sort((a,b)=>b.revenue-a.revenue).slice(0,12);
+  return { kpi:{revenue:total,orders,companies:comps.size,agents:agents.size}, regions, regionReport,
+    regionTotal:{companies:comps.size,agents:agents.size,revenue:total,orders:orders}, topCompanies, topAgents };
+}
+
+/* ====================== RENDER ====================== */
+let donutChart=null, barChart=null;
+function render(D){
+  // Có dữ liệu -> ẩn banner & xoá placeholder biểu đồ
+  const eb=document.getElementById('emptyBanner'); if(eb) eb.style.display='none';
+  document.querySelectorAll('.chart-empty').forEach(el=>el.remove());
+
+  countUp(document.getElementById('kRevenue'), D.kpi.revenue, ' <span class="unit">đ</span>');
+  countUp(document.getElementById('kOrders'),    D.kpi.orders);
+  countUp(document.getElementById('kCompanies'), D.kpi.companies);
+  countUp(document.getElementById('kAgents'),    D.kpi.agents);
+
+  const labels = D.regions.map(r=>r.name);
+  const colors = labels.map(l=>REGION_COLOR[l]||'#94a3b8');
+  const totalRev = D.regions.reduce((s,r)=>s+r.revenue,0)||1;
+
+  // Donut
+  if(donutChart) donutChart.destroy();
+  donutChart = new Chart(document.getElementById('donut'),{
+    type:'doughnut',
+    data:{ labels, datasets:[{ data:D.regions.map(r=>r.revenue), backgroundColor:colors, borderWidth:3, borderColor:'#fff', hoverOffset:8 }] },
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'62%',
+      animation:{ animateRotate:true, animateScale:true, duration:1300, easing:'easeOutBack' },
+      plugins:{
+        legend:{position:'bottom', labels:{boxWidth:11,boxHeight:11,usePointStyle:true,pointStyle:'circle',padding:14,font:{size:12},
+                 generateLabels:c=>c.data.labels.map((l,i)=>({text:SHORT[l]||l, fillStyle:colors[i], strokeStyle:colors[i], index:i, pointStyle:'circle'}))}},
+        tooltip:{callbacks:{label:ctx=>{const v=ctx.raw; return ' '+fmt(v)+' đ ('+(v/totalRev*100).toFixed(1)+'%)';}}}
+      }
+    },
+    plugins:[{ id:'pct', afterDatasetsDraw(c){
+      const {ctx}=c; const meta=c.getDatasetMeta(0);
+      meta.data.forEach((arc,i)=>{ const v=c.data.datasets[0].data[i]; const p=v/totalRev*100; if(p<3) return;
+        const pos=arc.tooltipPosition(); ctx.save(); ctx.fillStyle='#fff'; ctx.font='700 12px Segoe UI';
+        ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(p.toFixed(1)+'%',pos.x,pos.y); ctx.restore(); });
+    }}]
+  });
+
+  // Bars
+  if(barChart) barChart.destroy();
+  barChart = new Chart(document.getElementById('bars'),{
+    type:'bar',
+    data:{ labels:labels.map(l=>SHORT[l]||l),
+      datasets:[
+        {label:'Số đơn hàng', data:D.regions.map(r=>r.orders), backgroundColor:'#0F74C7', borderRadius:6, maxBarThickness:26},
+        {label:'Số lượng đại lý', data:D.regions.map(r=>r.agents), backgroundColor:'#F8B11D', borderRadius:6, maxBarThickness:26}
+      ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      animation:{ duration:900, easing:'easeOutQuart',
+        delay:ctx=> ctx.type==='data'&&ctx.mode==='default' ? ctx.dataIndex*120 + ctx.datasetIndex*60 : 0 },
+      plugins:{legend:{position:'top',labels:{usePointStyle:true,pointStyle:'rectRounded',padding:16,font:{size:12}}}},
+      scales:{ y:{beginAtZero:true, title:{display:true,text:'Số lượng',font:{size:12}}, grid:{color:'#eef2f7'}},
+               x:{ ticks:{maxRotation:40,minRotation:25,font:{size:11},autoSkip:false}, grid:{display:false} } }
+    }
+  });
+
+  // Original report table (BÁO CÁO THEO VÙNG)
+  const rep = D.regionReport||[];
+  const top3html = arr => arr.length? `<ul class="top3">${arr.map((t,j)=>
+      `<li><span class="nm"><b>${j+1}</b>${t.name}</span><span class="vl">${t.val}</span></li>`).join('')}</ul>` : '<span style="color:#9ca3af">—</span>';
+  document.getElementById('rptBody').innerHTML = rep.map((r,i)=>`
+    <tr style="animation-delay:${i*60}ms">
+      <td class="c-stt"><span class="stt-badge">${r.stt!=null?r.stt:i+1}</span></td>
+      <td><div class="vung-name">${r.name}</div></td>
+      <td class="num"><span class="cnt-pill">${fmt(r.ctyCount||0)}</span></td>
+      <td>${top3html(r.top3Cty||[])}</td>
+      <td class="num"><span class="cnt-pill">${fmt(r.dlyCount||0)}</span></td>
+      <td>${top3html(r.top3Dly||[])}</td>
+      <td class="num"><span class="dt-big">${fmt(r.revenue||0)}</span></td>
+      <td class="num"><span class="don-big">${fmt(r.orders||0)}</span></td>
+    </tr>`).join('');
+  const t = D.regionTotal||{};
+  document.getElementById('rptFoot').innerHTML = `
+    <tr>
+      <td class="c-stt">∑</td>
+      <td>TỔNG — ${rep.length} vùng</td>
+      <td class="num">${fmt(t.companies||D.kpi.companies)}</td>
+      <td>—</td>
+      <td class="num">${fmt(t.agents||D.kpi.agents)}</td>
+      <td>—</td>
+      <td class="num">${fmt(t.revenue||D.kpi.revenue)}</td>
+      <td class="num">${fmt(t.orders||D.kpi.orders)}</td>
+    </tr>`;
+
+  // Region table
+  document.getElementById('regCount').textContent = D.regions.length+' vùng miền';
+  document.getElementById('regBody').innerHTML = D.regions.map((r,i)=>`
+    <tr style="animation-delay:${i*55}ms">
+      <td><span class="reg-chip"><span class="sw" style="background:${REGION_COLOR[r.name]||'#94a3b8'}"></span>${r.name}</span></td>
+      <td class="num">${fmt(r.revenue)}</td>
+      <td class="num">${(r.revenue/totalRev*100).toFixed(1)}%</td>
+      <td class="num">${fmt(r.orders)}</td>
+      <td class="num">${fmt(r.companies)}</td>
+      <td class="num">${fmt(r.agents)}</td>
+    </tr>`).join('');
+
+  // Top companies
+  document.getElementById('compBody').innerHTML = D.topCompanies.map((c,i)=>`
+    <tr style="animation-delay:${i*45}ms"><td><span class="rank">${i+1}</span></td><td>${c.name}</td><td class="num">${fmt(c.revenue)}</td><td class="num">${fmt(c.orders)}</td></tr>`).join('');
+
+  // Top agents
+  document.getElementById('agentBody').innerHTML = D.topAgents.map((a,i)=>`
+    <tr style="animation-delay:${i*45}ms"><td><span class="rank">${i+1}</span></td><td>${a.name}</td><td style="color:var(--muted)">${a.company}</td><td class="num">${fmt(a.revenue)}</td></tr>`).join('');
+}
+
+/* ====================== BỘ LỌC THỜI GIAN ====================== */
+let RAW=null, DMIN=null, DMAX=null;           // dữ liệu thô + biên ngày
+const $=id=>document.getElementById(id);
+const ONE_DAY=86400000;
+const toInput = ms =>{ const d=new Date(ms); const p=n=>String(n).padStart(2,'0'); return d.getUTCFullYear()+'-'+p(d.getUTCMonth()+1)+'-'+p(d.getUTCDate()); };
+const dmy = ms =>{ const d=new Date(ms); const p=n=>String(n).padStart(2,'0'); return p(d.getUTCDate())+'/'+p(d.getUTCMonth()+1)+'/'+d.getUTCFullYear(); };
+const dayMs = v => { const d=new Date(v); return Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()); };  // chuẩn về UTC nửa đêm
+function startOf(ms){ return Math.floor(ms/ONE_DAY)*ONE_DAY; }
+function endOf(ms){ return startOf(ms)+ONE_DAY-1; }
+
+function setChip(range){ document.querySelectorAll('#flChips .chip').forEach(c=>c.classList.toggle('active', c.dataset.range===range)); }
+
+function applyFilter(range){
+  if(!RAW) return;
+  let from=startOf(Number($('dFrom').value? new Date($('dFrom').value): DMIN));
+  let to  =endOf(Number($('dTo').value? new Date($('dTo').value): DMAX));
+  if(from>to){ const t=from; from=to; to=t; }
+  const recs = RAW.filter(r=> r.t!=null && r.t>=from && r.t<=to);
+  const D = computeFromRecords(recs);
+  render(D);
+  $('dataStatus').textContent = 'Dữ liệu: '+dmy(from)+' – '+dmy(to);
+  $('flNote').textContent = recs.length.toLocaleString('vi-VN')+' đơn trong khoảng đã chọn';
+  if(range!==undefined) setChip(range);
+}
+
+function setupDates(parsed){
+  RAW=parsed.records; DMIN=parsed.dmin; DMAX=parsed.dmax;
+  const fEl=$('dFrom'), tEl=$('dTo');
+  [fEl,tEl].forEach(el=>{ el.disabled=false; el.min=toInput(DMIN); el.max=toInput(DMAX); });
+  fEl.value=toInput(DMIN); tEl.value=toInput(DMAX);
+  document.querySelectorAll('#flChips .chip').forEach(c=>c.disabled=false);
+}
+
+// chọn nhanh
+document.querySelectorAll('#flChips .chip').forEach(chip=>{
+  chip.addEventListener('click',()=>{
+    if(!RAW) return;
+    const rg=chip.dataset.range;
+    if(rg==='all'||rg==='reset'){ $('dFrom').value=toInput(DMIN); $('dTo').value=toInput(DMAX); applyFilter('all'); }
+    else { const days=parseInt(rg,10); const from=Math.max(DMIN, startOf(DMAX)-(days-1)*ONE_DAY);
+      $('dFrom').value=toInput(from); $('dTo').value=toInput(DMAX); applyFilter(rg); }
+  });
+});
+// đổi ngày thủ công
+$('dFrom').addEventListener('change',()=>applyFilter('custom'));
+$('dTo').addEventListener('change',()=>applyFilter('custom'));
+
+/* ====================== UPLOAD ====================== */
+document.getElementById('fileInput').addEventListener('change', e=>{
+  const f=e.target.files[0]; if(!f) return;
+  $('fileName').textContent='Đang đọc: '+f.name+' …';
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(ev.target.result),{type:'array'});
+      const parsed=parseRaw(wb);
+      if(parsed && parsed.records.length && parsed.dmin!=null){
+        setupDates(parsed);
+        applyFilter('all');                       // mặc định: toàn bộ khoảng ngày
+        $('flNote').textContent = RAW.length.toLocaleString('vi-VN')+' đơn · lọc theo Ngày cấp đơn';
+      } else {
+        // Không có dữ liệu thô/ngày -> dùng bảng tổng hợp, tắt lọc
+        render(aggregate(wb));
+        document.querySelectorAll('#flChips .chip').forEach(c=>c.disabled=true);
+        $('dFrom').disabled=$('dTo').disabled=true;
+        $('flNote').textContent='File không có cột ngày — hiển thị toàn bộ';
+        $('dataStatus').textContent='Dữ liệu từ file tải lên';
+      }
+      $('fileName').textContent='✔ Đã tải: '+f.name;
+    }catch(err){
+      $('fileName').textContent='';
+      alert('Lỗi đọc file: '+err.message);
+    }
+  };
+  reader.readAsArrayBuffer(f);
+});
+
+/* ====================== MÀN HÌNH CHỜ (chưa có dữ liệu) ====================== */
+function showEmpty(){
+  ['kRevenue','kOrders','kCompanies','kAgents'].forEach(id=>document.getElementById(id).textContent='—');
+  if(donutChart){ donutChart.destroy(); donutChart=null; }
+  if(barChart){ barChart.destroy(); barChart=null; }
+  ['rptBody','regBody','compBody','agentBody'].forEach(id=>document.getElementById(id).innerHTML='');
+  document.getElementById('rptFoot').innerHTML='';
+  document.getElementById('regCount').textContent='';
+  const ph='<div class="chart-empty">Chưa có dữ liệu — tải lên file Excel để hiển thị biểu đồ</div>';
+  document.querySelectorAll('.chart-box').forEach(b=>{ b.querySelector('.chart-empty')?.remove(); b.insertAdjacentHTML('beforeend', ph); });
+}
+showEmpty();
+</script>
+</body>
+</html>
