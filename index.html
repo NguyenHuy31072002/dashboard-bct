@@ -62,7 +62,7 @@
   .btn svg{width:18px;height:18px}
 
   /* KPI */
-  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-bottom:26px}
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:18px;margin-bottom:26px}
   .kpi{padding:24px 24px 22px;display:flex;flex-direction:column;gap:6px;position:relative;overflow:hidden}
   .kpi .label{font-size:12px;letter-spacing:1.2px;font-weight:700;color:var(--muted);text-transform:uppercase}
   .kpi .value{font-size:30px;font-weight:800;line-height:1.1}
@@ -79,12 +79,14 @@
   .kpis .kpi:nth-child(2){animation-delay:.10s}
   .kpis .kpi:nth-child(3){animation-delay:.18s}
   .kpis .kpi:nth-child(4){animation-delay:.26s}
+  .kpis .kpi:nth-child(5){animation-delay:.34s}
   @keyframes fadein{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
   tbody tr{animation:fadein .5s both}
   .k1 .value{color:var(--navy)}.k1 .icon{background:#fdf2d2;color:#cf8f04}
   .k2 .icon{background:#e1eefb;color:#00529b}
   .k3 .icon{background:#e3f3ec;color:#1fa37a}
   .k4 .icon{background:#fbeede;color:#e1881f}
+  .k5 .icon{background:#efe7fb;color:#7c4dd6}
 
   /* Section title */
   .section-head{display:flex;align-items:center;gap:12px;margin:6px 4px 18px}
@@ -119,6 +121,11 @@
   .reg-chip{display:inline-flex;align-items:center;gap:8px}
   .reg-chip .sw{width:11px;height:11px;border-radius:3px}
   .two-tables{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  tbody tr.morerow{display:none}
+  tbody.show-all tr.morerow{display:table-row}
+  .more-btn{display:none;width:100%;margin-top:12px;padding:10px;border:1px solid var(--line);background:#f7fafd;
+    color:var(--primary);font-weight:700;font-size:13px;border-radius:12px;cursor:pointer;transition:all .15s}
+  .more-btn:hover{background:#eef4fb;border-color:var(--primary)}
 
   /* Original report table */
   .report{margin-bottom:26px;overflow:hidden}
@@ -240,6 +247,12 @@
       <div class="hint">Đại lý có doanh số</div>
       <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/></svg></div>
     </div>
+    <div class="card kpi k5">
+      <div class="label">Số khách hàng tham gia</div>
+      <div class="value" id="kCustomers">0</div>
+      <div class="hint">Người được bảo hiểm</div>
+      <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div>
+    </div>
   </div>
 
   <!-- SECTION -->
@@ -300,18 +313,20 @@
   <!-- TOP TABLES -->
   <div class="two-tables">
     <div class="card tablecard">
-      <div class="panel-head"><h3>Top Công Ty Theo Doanh Thu</h3></div>
+      <div class="panel-head"><h3>Top Công Ty Theo Doanh Thu</h3><span class="pill" id="compCount"></span></div>
       <table>
         <thead><tr><th>#</th><th>Công ty</th><th class="num">Doanh thu (đ)</th><th class="num">Số đơn</th></tr></thead>
         <tbody id="compBody"></tbody>
       </table>
+      <button class="more-btn" id="compMore" onclick="toggleMore('compBody','compMore')"></button>
     </div>
     <div class="card tablecard">
-      <div class="panel-head"><h3>Top Đại Lý Phát Sinh DT</h3></div>
+      <div class="panel-head"><h3>Top Đại Lý Phát Sinh DT</h3><span class="pill" id="agentCount"></span></div>
       <table>
         <thead><tr><th>#</th><th>Đại lý</th><th>Công ty</th><th class="num">Doanh thu (đ)</th></tr></thead>
         <tbody id="agentBody"></tbody>
       </table>
+      <button class="more-btn" id="agentMore" onclick="toggleMore('agentBody','agentMore')"></button>
     </div>
   </div>
 
@@ -550,17 +565,48 @@ function parseRaw(wb){
   const iUnit=findCol(H,COL.unit), iAgent=findCol(H,COL.agent), iAgentNm=findCol(H,COL.agentNm), iFee=findCol(H,COL.fee), iDate=findCol(H,COL.date);
   if(iUnit<0||iFee<0) return null;
   const records=[]; let dmin=null,dmax=null;
+  const ext=t=>{ if(t!=null){ if(dmin==null||t<dmin)dmin=t; if(dmax==null||t>dmax)dmax=t; } };
   for(let r=1;r<rows.length;r++){
     const row=rows[r]; if(!row) continue;
     const u=row[iUnit]; if(!u||!clean(u)) continue;
     let fee=parseFloat(row[iFee]); if(!isFinite(fee)) fee=0;
     const a = iAgent>=0? row[iAgent] : null;
     const t = iDate>=0? toMs(row[iDate]) : null;
-    if(t!=null){ if(dmin==null||t<dmin)dmin=t; if(dmax==null||t>dmax)dmax=t; }
+    ext(t);
     records.push({ t, region:regionOf(u), compKey:clean(u), compNorm:normCompany(u),
       agentKey: (a!=null&&clean(a))? clean(a):null, agentNm: iAgentNm>=0? clean(row[iAgentNm]):'', fee });
   }
-  return { records, dmin, dmax };
+
+  // ----- KHÁCH HÀNG: người được BH (DATA_CHI TIẾT) + người nhóm (DATA_TỔ CHỨC) -----
+  const cust={detail:[], org:[]};
+  const cs=wb.Sheets['DATA_CHI TIẾT'];
+  if(cs){ const cr=XLSX.utils.sheet_to_json(cs,{header:1,raw:true}); const CH=cr[0]||[];
+    const iNguoi=findCol(CH,'người được bh'), iCD=findCol(CH,'ngày cấp đơn');
+    for(let r=1;r<cr.length;r++){ const row=cr[r]; if(!row) continue;
+      const ng=iNguoi>=0?row[iNguoi]:row[1];
+      if(ng==null||!clean(ng)) continue;
+      const t=iCD>=0?toMs(row[iCD]):null; ext(t); cust.detail.push(t);
+    }
+  }
+  const os=wb.Sheets['DATA_TỔ CHỨC'];
+  if(os){ const or=XLSX.utils.sheet_to_json(os,{header:1,raw:true}); const OH=or[0]||[];
+    const iN=findCol(OH,'số người'), iOD=findCol(OH,'ngày');
+    for(let r=1;r<or.length;r++){ const row=or[r]; if(!row) continue;
+      if(typeof row[0]==='string' && row[0].trim().toUpperCase().startsWith('TỔNG')) continue;
+      const n=parseInt(row[iN>=0?iN:5],10); if(!isFinite(n)) continue;
+      const t=iOD>=0?toMs(row[iOD]):null; ext(t); cust.org.push({t, n});
+    }
+  }
+  return { records, dmin, dmax, cust };
+}
+// Đếm khách hàng trong khoảng [from,to] (null = không giới hạn)
+function countCustomers(cust, from, to){
+  if(!cust) return null;
+  const inRange=t=> t==null ? (from==null&&to==null) : ((from==null||t>=from)&&(to==null||t<=to));
+  let n=0;
+  for(const t of cust.detail) if(inRange(t)) n++;
+  for(const o of cust.org) if(inRange(o.t)) n+=o.n;
+  return n;
 }
 
 /* ====================== TÍNH TOÁN TỪ CÁC DÒNG ĐÃ LỌC ====================== */
@@ -590,9 +636,9 @@ function computeFromRecords(records){
     top3Dly: top3(x.agRev, k=>x.agNm[k]||k) }));
   const regions = activeRegions.map(x=>({name:x.name,revenue:x.revenue,orders:x.orders,agents:x.agents.size,companies:x.companies.size}));
   const topCompanies = Object.keys(compRev).map(k=>({name:compNm[k],revenue:compRev[k],orders:compOrd[k]}))
-      .sort((a,b)=>b.revenue-a.revenue).slice(0,12);
+      .sort((a,b)=>b.revenue-a.revenue);
   const topAgents = Object.keys(agRev).map(k=>({name:agNm[k],company:agComp[k],revenue:agRev[k],orders:agOrd[k]}))
-      .sort((a,b)=>b.revenue-a.revenue).slice(0,12);
+      .sort((a,b)=>b.revenue-a.revenue);
   return { kpi:{revenue:total,orders,companies:comps.size,agents:agents.size}, regions, regionReport,
     regionTotal:{companies:comps.size,agents:agents.size,revenue:total,orders:orders}, topCompanies, topAgents };
 }
@@ -608,6 +654,8 @@ function render(D){
   countUp(document.getElementById('kOrders'),    D.kpi.orders);
   countUp(document.getElementById('kCompanies'), D.kpi.companies);
   countUp(document.getElementById('kAgents'),    D.kpi.agents);
+  if(D.kpi.customers!=null) countUp(document.getElementById('kCustomers'), D.kpi.customers);
+  else document.getElementById('kCustomers').textContent='—';
 
   const labels = D.regions.map(r=>r.name);
   const colors = labels.map(l=>REGION_COLOR[l]||'#94a3b8');
@@ -692,17 +740,34 @@ function render(D){
       <td class="num">${fmt(r.agents)}</td>
     </tr>`).join('');
 
-  // Top companies
-  document.getElementById('compBody').innerHTML = D.topCompanies.map((c,i)=>`
-    <tr style="animation-delay:${i*45}ms"><td><span class="rank">${i+1}</span></td><td>${c.name}</td><td class="num">${fmt(c.revenue)}</td><td class="num">${fmt(c.orders)}</td></tr>`).join('');
+  // Top companies (sổ ra xem hết)
+  fillTop('compBody','compMore','compCount', D.topCompanies, (c,i)=>
+    `<td><span class="rank">${i+1}</span></td><td>${c.name}</td><td class="num">${fmt(c.revenue)}</td><td class="num">${fmt(c.orders)}</td>`);
 
-  // Top agents
-  document.getElementById('agentBody').innerHTML = D.topAgents.map((a,i)=>`
-    <tr style="animation-delay:${i*45}ms"><td><span class="rank">${i+1}</span></td><td>${a.name}</td><td style="color:var(--muted)">${a.company}</td><td class="num">${fmt(a.revenue)}</td></tr>`).join('');
+  // Top agents (sổ ra xem hết)
+  fillTop('agentBody','agentMore','agentCount', D.topAgents, (a,i)=>
+    `<td><span class="rank">${i+1}</span></td><td>${a.name}</td><td style="color:var(--muted)">${a.company}</td><td class="num">${fmt(a.revenue)}</td>`);
+}
+
+const TOP_LIMIT=12;
+function fillTop(bodyId, btnId, countId, list, rowHtml){
+  const body=document.getElementById(bodyId);
+  body.classList.remove('show-all');
+  body.innerHTML = list.map((item,i)=>`<tr class="${i>=TOP_LIMIT?'morerow':''}" style="animation-delay:${Math.min(i,TOP_LIMIT)*40}ms">${rowHtml(item,i)}</tr>`).join('');
+  const cEl=document.getElementById(countId); if(cEl) cEl.textContent=list.length+' mục';
+  const btn=document.getElementById(btnId);
+  if(list.length>TOP_LIMIT){ btn.style.display='block'; btn.textContent='Xem tất cả '+list.length+' mục  ▼'; }
+  else btn.style.display='none';
+}
+function toggleMore(bodyId, btnId){
+  const body=document.getElementById(bodyId), btn=document.getElementById(btnId);
+  const open=body.classList.toggle('show-all');
+  const total=body.querySelectorAll('tr').length;
+  btn.textContent = open ? 'Thu gọn  ▲' : 'Xem tất cả '+total+' mục  ▼';
 }
 
 /* ====================== BỘ LỌC THỜI GIAN ====================== */
-let RAW=null, DMIN=null, DMAX=null;           // dữ liệu thô + biên ngày
+let RAW=null, DMIN=null, DMAX=null, CUST=null;   // dữ liệu thô + biên ngày + khách hàng
 const $=id=>document.getElementById(id);
 const ONE_DAY=86400000;
 const toInput = ms =>{ const d=new Date(ms); const p=n=>String(n).padStart(2,'0'); return d.getUTCFullYear()+'-'+p(d.getUTCMonth()+1)+'-'+p(d.getUTCDate()); };
@@ -720,6 +785,7 @@ function applyFilter(range){
   if(from>to){ const t=from; from=to; to=t; }
   const recs = RAW.filter(r=> r.t!=null && r.t>=from && r.t<=to);
   const D = computeFromRecords(recs);
+  D.kpi.customers = countCustomers(CUST, from, to);
   render(D);
   $('dataStatus').textContent = 'Dữ liệu: '+dmy(from)+' – '+dmy(to);
   $('flNote').textContent = recs.length.toLocaleString('vi-VN')+' đơn trong khoảng đã chọn';
@@ -727,7 +793,7 @@ function applyFilter(range){
 }
 
 function setupDates(parsed){
-  RAW=parsed.records; DMIN=parsed.dmin; DMAX=parsed.dmax;
+  RAW=parsed.records; DMIN=parsed.dmin; DMAX=parsed.dmax; CUST=parsed.cust;
   const fEl=$('dFrom'), tEl=$('dTo');
   [fEl,tEl].forEach(el=>{ el.disabled=false; el.min=toInput(DMIN); el.max=toInput(DMAX); });
   fEl.value=toInput(DMIN); tEl.value=toInput(DMAX);
@@ -780,12 +846,13 @@ document.getElementById('fileInput').addEventListener('change', e=>{
 
 /* ====================== MÀN HÌNH CHỜ (chưa có dữ liệu) ====================== */
 function showEmpty(){
-  ['kRevenue','kOrders','kCompanies','kAgents'].forEach(id=>document.getElementById(id).textContent='—');
+  ['kRevenue','kOrders','kCompanies','kAgents','kCustomers'].forEach(id=>document.getElementById(id).textContent='—');
   if(donutChart){ donutChart.destroy(); donutChart=null; }
   if(barChart){ barChart.destroy(); barChart=null; }
   ['rptBody','regBody','compBody','agentBody'].forEach(id=>document.getElementById(id).innerHTML='');
   document.getElementById('rptFoot').innerHTML='';
-  document.getElementById('regCount').textContent='';
+  ['regCount','compCount','agentCount'].forEach(id=>document.getElementById(id).textContent='');
+  ['compMore','agentMore'].forEach(id=>document.getElementById(id).style.display='none');
   const ph='<div class="chart-empty">Chưa có dữ liệu — tải lên file Excel để hiển thị biểu đồ</div>';
   document.querySelectorAll('.chart-box').forEach(b=>{ b.querySelector('.chart-empty')?.remove(); b.insertAdjacentHTML('beforeend', ph); });
 }
